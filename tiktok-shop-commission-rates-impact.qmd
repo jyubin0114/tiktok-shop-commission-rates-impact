@@ -1,0 +1,680 @@
+---
+title: "The Impact of Influencer Commission Rates on TikTok Shop Sales"
+format: html
+editor: visual
+embed-resources: true
+---
+
+```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+```
+
+## Project Summary
+
+TikTok Shop currently operates on a uniform **8% commission** model for all influencers. This project evaluates a proposed policy change for March 1, 2026, which would increase the commission to **15% for "large" influencers** (those with 50,000+ followers). The core objective is to determine if this nearly doubled payout generates enough incremental sales to justify the increased cost to the platform.
+
+#### DAG Analysis
+
+To identify the causal effect of the commission increase, we mapped the relationships between the platform's variables. The DAG identifies **Commission (**$D$) as the treatment and **Sales (**$Y$) as the outcome.
+
+The **Running Variable (**$R$) is the follower count, with a strict **Cutoff (**$c$) at 50,000. We identified two primary confounders:
+
+-   **Creator Ability (**$\alpha_i$): Unobserved traits like persuasiveness or content quality that influence both follower growth and sales.
+
+-   **Time Shocks (**$Time\_FE$): Monthly seasonality (e.g., platform-wide demand spikes)
+
+#### Method Used
+
+We employed four distinct econometric strategies to ensure the results were robust across different assumptions:
+
+1.  **Sharp Regression Discontinuity (RD):** Compared creators just above the 50K threshold to those just below it during March 2026. This isolates the effect of the "jump" in commission for nearly identical influencers.
+
+2.  **Fuzzy RD:** Accounted for imperfect enforcement where some creators near the 50K mark might receive the 15% rate.
+
+3.  **Fixed Effects (FE) Model:** Analyzed within-creator changes from February to March. This allowed us to control for time-invariant traits ($\alpha_i$) by using each creator as their own control group.
+
+$$\text{Sales_it} = \beta_1*\text{Commission_it} + \alpha_i+ \gamma_t+\text{e_it}$$
+
+1.  **Difference-in-Differences (DiD):** Compared the change in sales for the "Treated" group (50K+ followers) against the "Control" group (\<50K followers) over the Feb–Mar period.
+
+$$\text{Sales_it} = \alpha+\beta*\text{Treat_i} + \gamma_i*\text{Post_t}+ \delta*\text{DiD_it}+\text{e_it}$$
+
+#### Result of Analysis
+
+Across all models, the analysis yielded a statistically non-significant result. We found no statistically significant evidence that increasing the commission rate from 8% to 15% led to a short-run increase in sales.
+
+-   While 50K+ creators do have higher average sales, the data suggests this is due to their **existing scale** and **inherent ability**, not the higher commission.
+
+-   Large influencers appear relatively inelastic to marginal commission changes in the short term, possibly because they are already operating near their content production capacity.
+
+-   The estimated treatment effects were economically small and failed to pass standard significance thresholds(p\>0.05).
+
+#### Business Implications to Clients
+
+Our findings indicate that increasing commission from 8% to 15% for creators above 50,000 followers does not produce a measurable short-run increase in sales. This suggests that a uniform commission increase for large creators may raise payout costs without generating proportional revenue gains.
+
+Rather than implementing a blanket policy, TikTok should consider more targeted incentive designs, such as performance, based bonuses or tiered commission structures focused on high-growth or mid-tier creators. Additionally, longer-term data or pilot experiments may help identify dynamic or heterogeneous responses that are not captured in this short panel setting.
+
+## Data Simulation
+
+The following is the simulated data used in this project.
+
+**\[Dataset Dictionary\]**
+
+-   Creator_ID: Primary key for each influencer/creator (integer)
+-   Month: Month index for 2026 (1 = Jan, ..., 12 = Dec)
+-   Followers: Follower count for each creator (running variable, heavy-tailed)
+-   Post_Policy: 1 = month is March 2026 or later, 0 = Jan–Feb 2026
+-   Eligible_50K: 1 = 'Followers \>= 50,000', 0 otherwise
+-   Commission_Sharp: Commission rate under the sharp rule (0.15 vs 0.08)
+-   Treated_Fuzzy: 1 = receives the 15% rate in the fuzzy design, 0 otherwise
+-   Commission_Fuzzy: Commission rate under fuzzy assignment (0.15 vs 0.08)
+-   Alpha_i: Unobserved creator fixed trait score (e.g., content quality / persuasiveness) - given by TikTok
+-   Time_FE: Month-specific shock (seasonality / platform-wide demand)
+-   e_it: Random noise term
+-   Sales: Monthly sales amount (target variable)
+
+**\[DAG Dictionary\]**
+
+-   Outcome (Y): Sales
+-   Treatment (D): Commission increase (8% -\> 15%)
+-   Treatment Effect (TE): Effect of higher commission rate on monthly sales
+-   Running Variable (R): Followers
+-   Cutoff (c): 50,000 followers
+-   Key Confounder(s): Creator ability (Alpha_i), plus general time shocks (Time_FE)
+
+**\[DGP / Simulation Logic\]**
+
+We simulate a panel of creators over time so that RD, FE, and DiD can all be implemented.
+
+1)  **Followers distribution (running variable)**\
+    Follower counts are generated from a log-normal distribution to reflect that influencer markets are highly skewed (a few very large creators, many small creators). We chose meanlog = 10 and sdlog = 1 to generate a realistic range around the 50K cutoff.
+
+2)  **Treatment distribution (commission rules)**\
+    We implement two versions:
+
+-   **Sharp rule (Sharp RD):**\
+    Commission_Sharp = 0.15 if (Followers \>= 50,000) AND (Post_Policy = 1), else 0.08.
+
+-   **Fuzzy rule (Fuzzy RD):**\
+    In the real policy, creators above 50K definitely receive 15% after March. However, in practice there can still be imperfect enforcement *around* the cutoff due to measurement timing (follower counts updating with a lag), manual exceptions, or early rollouts to near-threshold creators.\
+    To reflect this, we keep **full compliance for 50K+**, but allow some **near-cutoff creators (45K–50K)** to sometimes receive the 15% rate after March. This creates a discontinuous jump in the probability of treatment at 50K, while still allowing imperfect compliance in the neighborhood of the cutoff.
+
+3)  **Target variable distribution (Sales)**
+
+Sales is generated as a linear combination of commission, creator reach, unobserved ability, time effects, and random noise:
+
+$$\text{Sales_it} = \beta_1*\text{Commission_it} + \beta_2*\text{log(Followers_i)} + \beta_3*\text{Alpha_i}+\text{Time_FE_t}+\text{e_it}$$
+
+where e_it is Gaussian noise with mean 0 and standard deviation sigma.\
+Coefficients were chosen to ensure that variation in sales is economically meaningful relative to commission changes. This structure ensures that RD identifies local effects around the cutoff, while FE and DiD exploit within-creator and time variation for identification.
+
+**\[LLM Prompt Used\]**
+
+"Generate R code to simulate a panel dataset of 2,000 creators over 12 months in 2026. Include a commission policy change in March 2026 for creators above 50K followers. Include creator fixed effects, time effects, and both sharp and fuzzy RD treatment assignments. Return a clean data frame ready for RD / FE / DiD."
+
+**\[Refinements / Adjustments\]**
+
+After an initial draft, we refined the simulation to better match the application: - Used a log-normal distribution for followers (instead of normal) to reflect heavy-tailed influencer size. - Added creator-level unobserved ability (Alpha_i) to create realistic endogeneity and justify FE usage. - Added month-level shocks (Time_FE) to represent seasonality and allow credible DiD comparisons. - Updated the fuzzy rule to keep full compliance for 50K+ creators, while allowing imperfect assignment near the cutoff (45K–50K) to reflect real-world implementation frictions.
+
+**\[Data Simulation\]**
+
+```{r}
+set.seed(123)
+library(dplyr)
+
+# Parameters
+n_creators <- 2000
+n_months <- 12
+
+# Creator-level variables
+creator_id <- 1:n_creators
+alpha_i <- rnorm(n_creators, mean = 0, sd = 1)
+followers <- rlnorm(n_creators, meanlog = 10, sdlog = 1)
+
+creators_df <- data.frame(
+  Creator_ID = creator_id,
+  Alpha_i = alpha_i,
+  Followers = followers
+)
+
+# Expand to panel
+panel_df <- creators_df %>%
+  slice(rep(1:n(), each = n_months)) %>%
+  mutate(
+    Month = rep(1:n_months, times = n_creators),
+    Post_Policy = ifelse(Month >= 3, 1, 0),
+    Eligible_50K = ifelse(Followers >= 50000, 1, 0)
+  )
+
+# Sharp RD commission rule (kept in dataset)
+panel_df <- panel_df %>%
+  mutate(
+    Commission_Sharp = ifelse(Eligible_50K == 1 & Post_Policy == 1, 0.15, 0.08)
+  )
+
+# Time effects (seasonality / common shocks)
+time_shock <- rnorm(n_months, mean = 0, sd = 0.5)
+
+panel_df <- panel_df %>%
+  mutate(
+    Time_FE = time_shock[Month]
+  )
+
+# Outcome generation: Sales
+b1 <- 80
+b2 <- 120
+b3 <- 50
+sigma <- 200
+
+panel_df <- panel_df %>%
+  mutate(
+    # ---- FUZZY LOGIC IS HARDCODED HERE (TEMP ONLY) ----
+    D_tmp = case_when(
+      Post_Policy == 0 ~ 0,
+      Followers >= 50000 ~ 1,
+      Followers >= 45000 & Followers < 50000 ~ rbinom(n(), 1, 0.40),
+      TRUE ~ rbinom(n(), 1, 0.05)
+    ),
+    Comm_tmp = ifelse(D_tmp == 1, 0.15, 0.08),
+
+    e_it = rnorm(n(), mean = 0, sd = sigma),
+
+    # Choose which commission drives Sales:
+    # Option A (recommended): Sales driven by realized fuzzy commission
+    Sales = b1 * Comm_tmp +
+            b2 * log(Followers) +
+            b3 * Alpha_i +
+            Time_FE +
+            e_it
+  ) %>%
+  # ---- DROP FUZZY VARIABLES SO THEY DO NOT APPEAR IN THE DATASET ----
+  select(-D_tmp, -Comm_tmp)
+
+# Dataset 1: RD dataset (March only)
+rd_df <- panel_df %>% filter(Month == 3)
+
+# Dataset 2: FE + DiD dataset (Feb + March)
+fedid_df <- panel_df %>% filter(Month %in% c(2, 3))
+
+
+table(rd_df$Eligible_50K)
+table(fedid_df$Month)
+head(rd_df)
+
+
+```
+
+## Data Manipulation
+
+From the full simulated panel (panel_df), we construct two datasets to align with the business problem of each.
+
+First, for the RD analysis, we restrict the sample to March 2026 only:
+
+rd_df = panel_df filtered to Month == 3.
+
+This cross-sectional dataset reflects the post-policy environment and allows us to implement both sharp and fuzzy RD designs using the 50K cutoff.
+
+Second, for the FE and DiD analysis, we construct a two-period panel using February (pre-treatment) and March (post-treatment):
+
+fedid_df = panel_df filtered to Month in {2, 3}.
+
+This structure allows us to compare pre–post changes across eligible and non-eligible creators while controlling for creator fixed effects and common time shocks.
+
+By separating the datasets, we ensure that each identification strategy is implemented in a clean and transparent way, without forcing a single dataset to accommodate multiple empirical designs.
+
+## EDA
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+```
+
+### Dataset 1(RD) EDA
+
+The March dataset provides a cross-sectional snapshot after the policy change. We focus on the behavior of sales around the 50,000-follower threshold.
+
+```{r}
+# Summary statistics for RD dataset
+rd_summary <- rd_df %>%
+  summarise(
+    N = n(),
+    Mean_Sales = mean(Sales, na.rm = TRUE),
+    SD_Sales = sd(Sales, na.rm = TRUE),
+    Mean_Followers = mean(Followers, na.rm = TRUE),
+    Median_Followers = median(Followers, na.rm = TRUE),
+    Pct_Above_50K = mean(Eligible_50K) * 100,
+    Mean_Commission = mean(Commission_Sharp, na.rm = TRUE)
+  )
+
+print(rd_summary)
+```
+
+-   The dataset includes **2,000 creators**, with approximately **19.35%** eligible for the new 15% commission rate.
+
+-   The gap between the mean (35K) and median (21K) followers confirms a heavy-tailed distribution typical of social media platforms.
+
+#### RD Validity Check
+
+Understanding the distribution of followers is critical for RD validity. We examine whether there is evidence of manipulation around the 50K cutoff.
+
+```{r}
+ggplot(rd_df, aes(x = Followers)) +
+  geom_histogram(bins = 50, alpha = 0.7) +
+  geom_vline(xintercept = 50000, color = "red", linetype = "dashed", size = 1.2) +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Distribution of Followers (March 2026)",
+       x = "Number of Followers",
+       y = "Count") +
+  theme_minimal() 
+```
+
+-   The histogram shows a smooth decline across the 50K red dashed line. The lack of an artificial spike just above 50K suggests that the policy threshold is exogenous to creator behavior in the short term.
+
+```{r}
+ggplot(rd_df, aes(x = log(Followers))) +
+  geom_histogram(bins = 50, alpha = 0.7) +
+  geom_vline(xintercept = log(50000), color = "red", linetype = "dashed", size = 1.2) +
+  labs(title = "Distribution of Log(Followers)",
+       x = "Log(Number of Followers)",
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
+
+The log transformation reveals the underlying distribution more clearly. The log-normal distribution is appropriate for this application, consistent with real-world influencer platforms.
+
+#### Treatment Check (Sharp vs Fuzzy)
+
+We examine the raw relationship between our running variable (Followers) and our outcome (Sales) to see if a discontinuity exists.
+
+```{r}
+rd_window <- rd_df %>% filter(Followers >= 20000 & Followers <= 100000)
+
+ggplot(rd_window, aes(x = Followers, y = Sales, color = factor(Eligible_50K))) +
+  geom_point(alpha = 0.4, size = 2) +
+  geom_vline(xintercept = 50000, color = "red", linetype = "dashed", size = 1.2) +
+  geom_smooth(data = filter(rd_window, Eligible_50K == 0), method = "loess") +
+  geom_smooth(data = filter(rd_window, Eligible_50K == 1), method = "loess") +
+  scale_color_manual(values = c("0" = "blue", "1" = "darkgreen"), 
+                     labels = c("Below 50K (8%)", "50K+ (15%)"), name = "Commission") +
+  labs(title = "Sales vs. Followers Around the 50K Cutoff", x = "Number of Followers", y = "Monthly Sales ($)") +
+  theme_minimal()
+```
+
+There is a visible vertical gap in sales at the 50,000 mark. Creators just above the threshold appear to significantly outperform those just below it, despite having nearly identical follower counts.
+
+### Dataset 2(FE/DiD) EDA
+
+Now, we have a panel dataset that allows us to track individual creators over time to account for unobserved "ability" and platform-wide trends.
+
+#### Trend Analysis : Pre vs Post Policy
+
+```{r}
+parallel_trends <- fedid_df %>%
+  group_by(Month, Eligible_50K) %>%
+  summarise(Mean_Sales = mean(Sales), SE_Sales = sd(Sales) / sqrt(n()), .groups = "drop") %>%
+  mutate(Month_Label = factor(Month, labels = c("Feb (Pre)", "Mar (Post)")),
+         Group = factor(Eligible_50K, labels = c("Control (<50K)", "Treated (50K+)")))
+
+ggplot(parallel_trends, aes(x = Month_Label, y = Mean_Sales, color = Group, group = Group)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = Mean_Sales - 1.96*SE_Sales, ymax = Mean_Sales + 1.96*SE_Sales), width = 0.1) +
+  labs(title = "Parallel Trends Check: Mean Sales Over Time", y = "Average Sales ($)") +
+  theme_minimal()
+```
+
+-   Both groups show an upward trend, likely due to the seasonality.
+
+-   The distance between the green (Treated) and blue (Control) lines appears to widen in March, providing a preliminary visual for the Difference-in-Differences effect.
+
+#### Sales Distribution
+
+We now examine the density and variance of sales across both groups to ensure the data is intact for regression.
+
+```{r}
+# Sales density by treatment status
+ggplot(rd_df, aes(x = Sales, fill = factor(Eligible_50K))) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "green"),
+                    labels = c("Control (<50K)", "Treated (50K+)"),
+                    name = "Group") +
+  labs(title = "Density of Monthly Sales (March 2026)",
+       x = "Monthly Sales ($)", y = "Density") +
+  theme_minimal()
+```
+
+```{r}
+# Box plot comparison
+ggplot(rd_df, aes(x = factor(Eligible_50K), y = Sales, fill = factor(Eligible_50K))) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("0" = "blue", "1" = "green"),
+                    labels = c("Below 50K (8%)", "50K+ (15%)")) +
+  scale_x_discrete(labels = c("Below 50K\n(8% Commission)", "50K+\n(15% Commission)")) +
+  labs(title = "Sales Distribution Comparison: Eligible vs. Non-Eligible Creators",
+       subtitle = "Box plots show median, quartiles, and outliers",
+       x = "Eligibility Status",
+       y = "Monthly Sales ($)") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14),
+        legend.position = "none")
+```
+
+-   The distributions overlap significantly, but the treated group is visibly shifted to the right. Both appear roughly normal, justifying the use of OLS-based estimators.
+
+-   Box plot analysis confirms the presence of outliers in both groups.
+
+#### Correlation / Balance Check
+
+Before running our causal models, we analyze the correlation structure to identify potential sources of bias.
+
+```{r}
+# Correlation matrix for key variables
+cor_vars <- rd_df %>%
+  select(Sales, Followers, Alpha_i) %>%
+  cor()
+
+# Create a formatted correlation table
+print(cor_vars)
+```
+
+-   Sales is positively correlated to followers(0.4), and Alpha_i(0.2).
+
+-   The correlation between alpha_i (ability) and sales confirms that failing to control for innate creator quality would lead to Omitted Variable Bias (OVB). This motivates our use of Fixed Effects (FE).
+
+```{r}
+# Compare creator characteristics in narrow window around cutoff
+balance_check <- rd_df %>%
+  filter(Followers >= 40000 & Followers <= 60000) %>%
+  mutate(Above_Cutoff = Followers >= 50000) %>%
+  group_by(Above_Cutoff) %>%
+  summarise(
+    N = n(),
+    Mean_Alpha = mean(Alpha_i),
+    SD_Alpha = sd(Alpha_i),
+    Mean_Followers = mean(Followers),
+    Mean_Sales_Pre = mean(Sales) # Note: this is post-treatment, included for reference
+  )
+
+balance_check
+```
+
+Within the narrow window of 40K to 60K followers, we compare 151 creators just below the cutoff to 89 creators just above it.
+
+-   The mean Alpha_i for those below the cutoff is 0.032, while for those above it is -0.174. With both values close to the population mean of 0, this suggests that creators are not inherently "better" or more talented simply because they crossed the 50,000-follower line.
+
+## Methodology
+
+### 1. sharp RD
+
+**Non-technical description**
+
+Sharp RD compares creators just above vs just below 50K followers (in March, after the policy starts). Since these creators are nearly identical in follower count (and EDA suggests no manipulation at the cutoff), any sharp jump in sales at 50K can be interpreted as the causal effect of the commission increase for those near the threshold.
+
+**Technical implementation**
+
+We restrict the sample to March 2026 so that all observations are exposed to the policy. The running variable is defined as the distance from the 50,000-follower cutoff, and treatment under the sharp design is deterministic.
+
+```{r}
+rd_df <- panel_df %>%
+  filter(Month == 3) %>%
+  mutate(
+    running = Followers - 50000,
+    D_sharp = as.integer(Followers >= 50000)
+  )
+```
+
+We estimate the discontinuity using a local linear RD with a triangular kernel, which emphasizes observations closest to the cutoff.
+
+```{r}
+library(rdrobust)
+sharp_rd <- rdrobust(
+  y = rd_df$Sales,
+  x = rd_df$running,
+  c = 0,
+  p = 1,
+  kernel = "triangular"
+)
+summary(sharp_rd)
+```
+
+**Justification and Assumptions**
+
+The sharp RD design is appropriate because the commission policy assigns treatment strictly based on whether a creator’s followers exceed 50,000 after March 2026. Creators just above and just below this threshold are likely similar in all respects except for eligibility, making them a credible comparison group for identifying the local effect of the higher commission.
+
+This approach relies on the assumption that follower counts evolve smoothly and cannot be precisely manipulated around the cutoff in the short term. The EDA shows no abnormal clustering near 50K, supporting this assumption. We also assume that other determinants of sales, such as creator ability and demand trends, vary continuously with follower count at the threshold.
+
+Because RD estimates a local effect, the results apply primarily to creators near 50K followers rather than to all influencers. The March cross-section is used to ensure that all observations are exposed to the policy environment, avoiding pre-policy differences that could confound the comparison.
+
+### 2. fuzzy RD
+
+**Non-technical description**
+
+Fuzzy RD is used when treatment assignment around the cutoff is imperfect. Some creators near 50K followers may receive the higher commission even if they are slightly below the threshold, while others above the cutoff may not immediately receive it. In this case, the cutoff determines the probability of treatment rather than treatment itself.
+
+**Technical implementation** Because treatment may not be perfectly assigned near the cutoff, we construct an indicator for receiving the higher commission in March and use it as the endogenous treatment variable in a fuzzy RD.
+
+```{r}
+rd_df <- rd_df %>%
+  mutate(
+    Treated_Fuzzy = as.integer(Commission_Sharp == 0.15)
+  )
+```
+
+The fuzzy RD is estimated using the assignment rule (above 50K) as an instrument for actual treatment.
+
+```{r}
+fuzzy_rd <- rdrobust(
+  y = rd_df$Sales,
+  x = rd_df$running,
+  c = 0,
+  fuzzy = rd_df$Treated_Fuzzy,
+  p = 1,
+  kernel = "triangular"
+)
+summary(fuzzy_rd)
+```
+
+The first-stage results show a discontinuous jump in the probability of receiving the higher commission at the cutoff. In our simulated data, this jump is effectively complete (first-stage estimate ≈ 1), indicating near-perfect compliance with the policy rule. Consequently, the fuzzy RD estimate is very similar to the sharp RD estimate.
+
+**Justification and Assumptions**
+
+Fuzzy RD is appropriate when the cutoff influences treatment assignment but does not fully determine it. This framework isolates the causal effect of actually receiving the higher commission using the eligibility rule as an instrument.
+
+The design assumes that creators cannot precisely manipulate follower counts around the threshold and that all other determinants of sales vary smoothly at the cutoff. The EDA shows no bunching near 50K, supporting this assumption.
+
+Because compliance in the simulated data is nearly perfect, the fuzzy RD effectively collapses to the sharp RD case. Therefore, the estimate can be interpreted as the local causal effect of the commission increase for creators near the threshold.
+
+### 3. FE model
+
+**Non-technical description**
+
+The fixed effects (FE) model estimates the impact of the higher commission on sales by comparing each creator’s performance before and after the policy change while controlling for time-invariant creator characteristics and common time shocks. This approach removes bias from unobserved ability differences across creators, such as content quality or persuasiveness.
+
+**Technical implementation**
+
+To control for unobserved creator ability (Alpha_i) and time shocks, we estimate a fixed effects model using the February–March panel. The treatment variable is the realized commission rate.
+
+```{r}
+fedid_df <- panel_df %>%
+  filter(Month %in% c(2, 3)) %>%
+  mutate(
+    Commission = Commission_Sharp
+  )
+```
+
+We implement a two-way fixed effects regression with creator and month fixed effects.
+
+```{r}
+library(fixest)
+fe_model <- feols(
+  Sales ~ Commission | Creator_ID + Month,
+  data = fedid_df
+)
+summary(fe_model)
+```
+
+This specification identifies the treatment effect using within-creator changes in commission between February and March, after removing any time-invariant creator traits and common monthly shocks.
+
+**Justification and Assumptions**
+
+A fixed effects approach is appropriate because the EDA shows that creator ability (Alpha_i) is correlated with sales and would otherwise generate omitted variable bias. By comparing each creator to themselves over time, the FE model controls for these unobserved differences.
+
+Identification relies on the assumption that no other time-varying factors correlated with commission changes simultaneously affect sales within this short window. Because the policy change occurs at a clearly defined time and only affects eligible creators, the FE design provides a credible estimate of the causal impact, although statistical power is limited due to the short panel.
+
+### 4. DiD specifications
+
+**Non-technical description**
+
+Difference-in-Differences (DiD) compares the change in sales from February to March between creators eligible for the higher commission and those who are not. This removes time-invariant differences between large and small creators and common shocks affecting all creators.
+
+**Technical implementation**
+
+Treatment is defined as eligibility for the policy (followers ≥ 50K), and the post period is March 2026. The interaction between these variables captures the causal effect under the parallel trends assumption.
+
+```{r}
+fedid_df <- fedid_df %>%
+  mutate(
+    Treat = Eligible_50K,
+    Post = Post_Policy,
+    DiD = Treat * Post
+  )
+```
+
+1.  **Basic DiD**
+
+We first estimate a standard two-group, two-period DiD model without fixed effects.
+
+```{r}
+did_model1 <- lm(
+  Sales ~ Treat + Post + DiD,
+  data = fedid_df
+)
+
+summary(did_model1)
+```
+
+The coefficient on the interaction term DiD represents the average treatment effect on treated creators.
+
+2.  **DiD with Controls / FE** We then estimate a more robust specification including creator and time fixed effects, which removes baseline differences and common shocks.
+
+```{r}
+did_model2 <- feols(
+  Sales ~ DiD | Creator_ID + Month,
+  data = fedid_df
+)
+
+summary(did_model2)
+```
+
+This specification identifies the effect using within-creator changes over time while controlling for time-invariant ability and seasonality.
+
+**Justification and Assumptions**
+
+DiD is appropriate because the policy affects only creators above the follower threshold starting in March. The EDA suggests both groups follow similar trends prior to treatment, supporting the parallel trends assumption. The FE version further reduces bias by controlling for unobserved creator characteristics and common time shocks.
+
+## Findings
+
+### Executive summary
+
+This analysis evaluates whether increasing the commission rate from 8% to 15% for creators with at least 50,000 followers generates a meaningful increase in monthly sales sufficient to justify the additional payout by TikTok Shop.
+
+Across three causal identification strategies, RD, FE, DiD, we consistently find no statistically significant evidence that the higher commission rate increases short-run sales.
+
+Although creators above the 50K threshold generate higher sales on average, this difference appears to be explained primarily by scale and persistent creator ability rather than by the commission increase itself. The estimated treatment effects are economically small relative to overall sales variation and statistically indistinguishable from zero.
+
+From a short-run perspective, the policy does not appear to generate incremental revenue sufficient to offset higher commission payments.
+
+### Non-Technical Interpretation
+
+From a business perspective, the key question is simple: **If we pay large creators more, do they generate more sales?** Our results suggest that, in the short run, the answer is no. Creators with more than 50K followers already generate higher sales because they have larger audiences and stronger inherent engagement. However, increasing their commission rate does not appear to meaningful change their behavior or sales output.
+
+This suggest that large creators may already be operating near their production or demand capacity, sales performance may be driven more by audience size and content quality than by marginal commission incentives. Moreover, a uniform commission increase may increase payout costs without producing proportional revenue gains. Importantly, this does not imply incentives never matter. Rather, it suggests that in this particular policy design, a broad commission increase for large creators, the marginal response in sales is minimal in the short term.
+
+### Technical Discussion
+
+#### Regression Discontinuity (RD)
+
+We estimate a local linear sharp RD model centered at the 50K follower cutoff.
+
+```{r}
+rd_est <- sharp_rd$coef[1]
+rd_se  <- sharp_rd$se[1]
+rd_p   <- sharp_rd$pv[1]
+
+cat("RD Results:\n")
+cat("Estimate =", rd_est, "\n")
+cat("Std. Error =", rd_se, "\n")
+cat("p-value =", rd_p, "\n")
+```
+
+Under the identifying assumption of sharp RD, this estimate identifies the local causal effect of the commission increase at 50K followers. If the p-value exceeds conventional significance levels, we fail to reject the null hypothesis of no treatment effect at the cutoff. This implies that creators just above the threshold do not generate systematically higher sales than those just below it, after accounting for smooth scale effects. Because compliance in our simulated data is nearly perfect, the fuzzy RD specification yields identical results, implying that the Local Average Treatment Effect (LATE) coincides with the sharp RD estimate.
+
+#### Fixed Effects (FE)
+
+We estimate the following two-way fixed effects model:
+
+$$\text{Sales_it} = \beta_1*\text{Commission_it} + \alpha_i+ \gamma_t+\text{e_it}$$
+
+```{r}
+# Extract FE results
+fe_est <- coef(fe_model)["Commission"]
+fe_se  <- summary(fe_model)$se["Commission"]
+fe_p   <- summary(fe_model)$coeftable["Commission", "Pr(>|t|)"]
+
+cat("\nFE Results:\n")
+cat("Estimate =", fe_est, "\n")
+cat("Std. Error =", fe_se, "\n")
+cat("p-value =", fe_p, "\n")
+```
+
+The FE framework removes time-invariant unobserved heterogeneity, such as creator ability. If the estimated coefficient is economically small and statistically insignificant, this suggests that within-creator variation in commission does not meaningfully explain changes in sales. Given that Alpha_i is correlated with sales, the FE model addresses omitted variable bias. The absence of statistical significance therefore implies that the null result is unlikely to be driven by time-invariant heterogeneity.
+
+#### Difference-in-Differences (DiD)
+
+We estimate the standard 2x2 DiD model:
+
+$$\text{Sales_it} = \alpha+\beta*\text{Treat_i} + \gamma_i*\text{Post_t}+ \delta*\text{DiD_it}+\text{e_it}$$
+
+The DiD interaction coefficient is extracted directly:
+
+```{r}
+# Extract DiD results
+did_sum <- summary(did_model1)$coefficients
+
+did_est <- did_sum["DiD", "Estimate"]
+did_se  <- did_sum["DiD", "Std. Error"]
+did_p   <- did_sum["DiD", "Pr(>|t|)"]
+
+cat("\nDiD Results:\n")
+cat("Estimate =", did_est, "\n")
+cat("Std. Error =", did_se, "\n")
+cat("p-value =", did_p, "\n")
+```
+
+Under the parallel trends assumption, the DiD interaction coefficient identifies the Average Treatment Effect on the treated (ATT). If the estimated interaction term is statistically insignificant, we conclude that treated creators did not experience differential post-policy sales growth relative to control creators. However, because the panel includes only one pre-treatment period, the parallel trends assumption cannot be formally tested, limiting external credibility.
+
+#### Model Limitations and Opportunities for Improvement
+
+##### Extremely Short Panel (2x2 DiD Structure)
+
+A limitation of our design is the extremely short time horizon used in the panel analysis. Both the DiD and FE specifications rely on only two months of data: February (pre-treatment) and March (post-treatment). While this structure allows for a clean 2x2 DiD framework, it introduces important econometric concerns. First, the parallel trends assumption cannot be credibly evaluated with only a single pre-treatment period. It might be impossible to assess whether the groups were already on diverging trends prior to the policy change. Second, the short panel substantially limits statistical power. Commission incentives may influence behavior gradually rather than instantaneously.
+
+A longer panel would substantially improve the analysis. With additional pre-treatment periods, we could implement an event-study specification including leads and lags of treatment. This would allow for formal testing of pre-trends and provide a clearer assessment of whether treated and control groups were evolving similarly prior to the policy. Moreover, dynamic estimation would enable detection of delayed or accumulating treatment effects that may not appear immediately in the first post-treatment month.
+
+Extending the time dimension of the data would therefore strengthen both internal validity and economic interpretability. It would reduce reliance on untestable assumptions, increase statistical power, and allow for a richer understanding of how commission incentives operate over time.
+
+### Business Implications
+
+The findings suggest several strategic implications for TikTok Shop.
+
+First, a broad commission increase for large creators may not be an efficient revenue-generating strategy. Because large creators already operate at scale, their sales performance appears relatively inelastic to marginal commission changes.
+
+Second, the absense of measurable short-run effects implies that platform margin could decline if payout increases are not matched by incremental revenue growth.
+
+Third, incentive design may need to be more targeted. Commission increases may be more effective when directed at mid-tier creators with growth potential, tied to measurable incremental sales performance, and structured dynamically rather than uniformly.
+
+Finally, while short-run effects are minimal in this simplified setting, longer-term or heterogeneous responses may exist. A richer panel with dynamic treatment modeling or heterogeneous treatment effect analysis could reveal segments that respond more strongly to financial incentives.
